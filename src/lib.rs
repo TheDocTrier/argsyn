@@ -79,7 +79,7 @@
 
 /// Converts [`Iterator`] of [`String`]s into an iterator of [`Opt`]s.
 pub trait ArgsExt: Iterator<Item = String> + Sized {
-  /// Parses an [`Iterator<Item = String>`] using [`Parser`].
+  /// Parses an [`Iterator`] using [`Parser`].
   ///
   /// # Examples
   ///
@@ -162,7 +162,7 @@ impl<T> ArgsExt for T where T: Iterator<Item = String> {}
 ///   _ => panic!(),
 /// }
 /// ```
-#[derive(Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum SimpleOpt<'a> {
   /// [`NonOption`]
   Basic(&'a str),
@@ -181,7 +181,7 @@ pub enum SimpleOpt<'a> {
 use SimpleOpt::*;
 
 /// All possible options/non-options which can be parsed from arguments
-#[derive(Debug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum Opt {
   /// `file` (plain non-option argument)
   NonOption(String),
@@ -225,6 +225,7 @@ impl Opt {
 
 /// Flexible parser which converts arguments into [`Opt`]s
 #[non_exhaustive]
+#[derive(Debug)]
 pub struct Parser<I: Iterator<Item = String>> {
   /// Underlying [`Iterator`] of [`String`]s
   pub args: I,
@@ -353,32 +354,5 @@ impl<I: Iterator<Item = String>> Iterator for Parser<I> {
 
   fn next(&mut self) -> Option<Self::Item> {
     self.parse_opt()
-  }
-}
-
-#[test]
-fn t() {
-  let cmd = "
-  program
-  arg1
-  -abcx12
-  -y 3
-  --long
-  --key=value
-  -
-  arg2
-  --
-  -kh
-  --ignore
-";
-
-  let args = cmd
-    .trim()
-    .split_ascii_whitespace()
-    .into_iter()
-    .map(|s| s.to_string());
-
-  for opt in args.opts("xy") {
-    println!("{:?}", opt);
   }
 }
