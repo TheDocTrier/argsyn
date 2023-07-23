@@ -3,6 +3,26 @@
 //! This crate provides a complete implementation of the argument parsing algorithm described in \
 //! <https://www.gnu.org/software/libc/manual/html_node/Argument-Syntax.html>
 //!
+//! Arguments are converted into basics, flags, pairs, and a few other types according to the GNU-style.
+//! Here is a visual example of how a sequence of arguments is converted with `"xy"` specified as short pairs:
+//!
+//! ```text
+//! $ program arg1 -abcx12 -y 3 --long --key=value - arg2 -- -kh --ignore
+//!   |       |     ||||    |     |      |         | |    |  |   |
+//!   Basic(program)||||    |     |      |         | |    |  Basic(-kh)
+//!           Basic(arg1)   |     |      |         | |    |      Basic(--ignore)
+//!                 Flag(a) |     |      |         | |    |
+//!                  Flag(b)|     |      |         | |    |
+//!                   Flag(c)     |      |         | |    |
+//!                    Pair(x,12) |      |         | |    |
+//!                         Pair(y,3)    |         | |    |
+//!                               Flag(long)       | |    |
+//!                                      Pair(key,value)  |
+//!                                                Stdin  |
+//!                                                  Basic(arg2)
+//!                                                       Done
+//! ```
+//!
 //! The easiest way to use this crate is with [`ArgsExt::opts`] and [`Opt::simplify`].
 //! The extension trait is implemented for every [`Iterator`] which returns [`String`].
 //! This includes [`std::env::Args`].
@@ -17,65 +37,6 @@
 //!   }
 //! }
 //! ```
-//!
-//! # Specific Example
-//!
-//! Consider the following command:
-//!
-//! ```text
-//! $ program arg1 -abcx12 -y 3 --long --key=value - arg2 -- -kh --ignore
-//! ```
-//!
-//! The following code simulates parsing of the command above:
-//!
-//! ```
-//! use argsyn::ArgsExt;
-//!
-//! let cmd = "
-//!   program
-//!   arg1
-//!   -abcx12
-//!   -y 3
-//!   --long
-//!   --key=value
-//!   -
-//!   arg2
-//!   --
-//!   -kh
-//!   --ignore
-//! ";
-//!
-//! let args = cmd
-//!   .trim()
-//!   .split_ascii_whitespace()
-//!   .into_iter()
-//!   .map(|s| s.to_string());
-//!
-//! for opt in args.opts("xy") {
-//!   println!("{:?}", opt.simplify());
-//! }
-//! ```
-//!
-//! Running the above code produces the following output:
-//!
-//! ```text
-//! Basic("program")
-//! Basic("arg1")
-//! Flag("a")
-//! Flag("b")
-//! Flag("c")
-//! Pair("x", "12")
-//! Pair("y", "3")
-//! Flag("long")
-//! Pair("key", "value")
-//! Stdin
-//! Basic("arg2")
-//! Done
-//! Basic("-kh")
-//! Basic("--ignore")
-//! ```
-//!
-//! See [`ArgsExt::opts`] for the same example but without simplification.
 
 /// Converts [`Iterator`] of [`String`]s into an iterator of [`Opt`]s.
 pub trait ArgsExt: Iterator<Item = String> + Sized {
@@ -92,22 +53,9 @@ pub trait ArgsExt: Iterator<Item = String> + Sized {
   /// ```
   /// use argsyn::ArgsExt;
   ///
-  /// let cmd = "
-  ///   program
-  ///   arg1
-  ///   -abcx12
-  ///   -y 3
-  ///   --long
-  ///   --key=value
-  ///   -
-  ///   arg2
-  ///   --
-  ///   -kh
-  ///   --ignore
-  /// ";
+  /// let cmd = "program arg1 -abcx12 -y 3 --long --key=value - arg2 -- -kh --ignore";
   ///
   /// let args = cmd
-  ///   .trim()
   ///   .split_ascii_whitespace()
   ///   .into_iter()
   ///   .map(|s| s.to_string());
@@ -210,7 +158,49 @@ impl Opt {
   ///
   /// # Examples
   ///
-  /// See [`crate`] for an example of numerous `simplify` conversions.
+  /// Consider the following command:
+  ///
+  /// ```text
+  /// $ program arg1 -abcx12 -y 3 --long --key=value - arg2 -- -kh --ignore
+  /// ```
+  ///
+  /// The following code simulates parsing of the command above:
+  ///
+  /// ```
+  /// use argsyn::ArgsExt;
+  ///
+  /// let cmd = "program arg1 -abcx12 -y 3 --long --key=value - arg2 -- -kh --ignore";
+  ///
+  /// let args = cmd
+  ///   .split_ascii_whitespace()
+  ///   .into_iter()
+  ///   .map(|s| s.to_string());
+  ///
+  /// for opt in args.opts("xy") {
+  ///   println!("{:?}", opt.simplify());
+  /// }
+  /// ```
+  ///
+  /// Running the above code produces the following output:
+  ///
+  /// ```text
+  /// Basic("program")
+  /// Basic("arg1")
+  /// Flag("a")
+  /// Flag("b")
+  /// Flag("c")
+  /// Pair("x", "12")
+  /// Pair("y", "3")
+  /// Flag("long")
+  /// Pair("key", "value")
+  /// Stdin
+  /// Basic("arg2")
+  /// Done
+  /// Basic("-kh")
+  /// Basic("--ignore")
+  /// ```
+  ///
+  /// See [`ArgsExt::opts`] for the same example but without simplification.
   pub fn simplify(&self) -> SimpleOpt {
     match self {
       NonOption(s) => Basic(s),
