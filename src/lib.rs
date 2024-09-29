@@ -39,7 +39,7 @@
 //! ```
 
 use std::collections::{HashSet, VecDeque};
-use std::str;
+use std::fmt::Display;
 
 /// Converts [`Iterator`] of [`String`]s into an iterator of [`Opt`]s.
 pub trait ArgsExt: IntoIterator<Item = String> + Sized {
@@ -88,7 +88,7 @@ pub trait ArgsExt: IntoIterator<Item = String> + Sized {
     /// NonOption("-kh")
     /// NonOption("--ignore")
     /// ```
-    fn opts(self, short_pairs: &str) -> Option<Parser> {
+    fn opts(self, short_pairs: &str) -> Result<Parser, NonAlphaNumError> {
         Parser::new(self.into_iter().collect(), short_pairs.chars().collect())
     }
 }
@@ -244,16 +244,19 @@ impl Parser {
     ///
     /// let parser = Parser::new(args.collect(), "c".chars().collect());
     /// ```
-    pub fn new(args: VecDeque<String>, short_pairs: HashSet<char>) -> Option<Self> {
+    pub fn new(
+        args: VecDeque<String>,
+        short_pairs: HashSet<char>,
+    ) -> Result<Self, NonAlphaNumError> {
         // Check short_pairs only contains alphanumeric characters
-        short_pairs
-            .iter()
-            .all(|&a| is_alpha_num(a))
-            .then_some(Parser {
-                args,
-                short_pairs,
-                terminated: false,
-            })
+        for &c in short_pairs.iter() {
+            into_alpha_num(c)?;
+        }
+        Ok(Parser {
+            args,
+            short_pairs,
+            terminated: false,
+        })
     }
 
     /// Parses a single option/non-option
@@ -322,15 +325,27 @@ impl Iterator for Parser {
 
 // UTILS
 
-fn is_alpha_num(a: char) -> bool {
+/// An error returned by [`Parser::new`] when a non-alphanumeric short pair is given.
+#[derive(Debug)]
+pub struct NonAlphaNumError(char);
+
+impl Display for NonAlphaNumError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "character {:?} is not alphanumeric", self.0)
+    }
+}
+
+impl std::error::Error for NonAlphaNumError {}
+
+fn into_alpha_num(a: char) -> Result<char, NonAlphaNumError> {
     match a {
-        'a'..='z' | 'A'..='Z' | '0'..='9' => true,
-        _ => false,
+        'a'..='z' | 'A'..='Z' | '0'..='9' => Ok(a),
+        x => Err(NonAlphaNumError(x)),
     }
 }
 
 fn split_first_alpha_num(s: &str) -> Option<(char, &str)> {
     let mut c = s.chars();
-    let a = c.next()?;
-    is_alpha_num(a).then_some((a, c.as_str()))
+    let a = into_alpha_num(c.next()?).ok()?;
+    Some((a, c.as_str()))
 }
