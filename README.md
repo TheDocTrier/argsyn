@@ -26,7 +26,7 @@ $ program arg1 -abcx12 -y 3 --long --key=value - arg2 -- -kh --ignore
 In Rust, to print all arguments parsed, it is as simple as:
 
 ```rust
-for opt in std::env::args().opts("xy") {
+for opt in std::env::args().opts("xy").unwrap() {
   println!("{:?}", opt.simplify());
 }
 ```
