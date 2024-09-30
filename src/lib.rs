@@ -337,7 +337,8 @@ impl Display for NonAlphaNumError {
 
 impl std::error::Error for NonAlphaNumError {}
 
-fn into_alpha_num(a: char) -> Result<char, NonAlphaNumError> {
+/// Check that `a` can be used as a short
+pub fn into_alpha_num(a: char) -> Result<char, NonAlphaNumError> {
     match a {
         'a'..='z' | 'A'..='Z' | '0'..='9' => Ok(a),
         x => Err(NonAlphaNumError(x)),
