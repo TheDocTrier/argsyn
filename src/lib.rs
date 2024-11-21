@@ -38,7 +38,7 @@
 //! }
 //! ```
 
-use ref_cast::RefCast;
+use ref_cast::{ref_cast_custom, RefCastCustom};
 
 use core::str;
 use std::collections::VecDeque;
@@ -342,7 +342,7 @@ fn split_first_alpha_num(s: &str) -> Option<(AlphaNum, &str)> {
 }
 
 /// Store an alpha numeric byte which can be used as a short option
-#[derive(Clone, Copy, PartialEq, Eq, RefCast)]
+#[derive(Clone, Copy, PartialEq, Eq, RefCastCustom)]
 #[repr(transparent)]
 pub struct AlphaNum(u8);
 
@@ -355,9 +355,8 @@ impl AlphaNum {
         }
     }
 
-    pub fn as_str(&self) -> &str {
-        self.as_ref()
-    }
+    #[ref_cast_custom]
+    fn from_u8_ref_unchecked(a: &u8) -> &Self;
 }
 
 impl Debug for AlphaNum {
@@ -366,16 +365,24 @@ impl Debug for AlphaNum {
     }
 }
 
-impl AsRef<str> for AlphaNum {
-    fn as_ref(&self) -> &str {
+impl Display for AlphaNum {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.into())
+    }
+}
+
+impl<'a> Into<&'a str> for &'a AlphaNum {
+    fn into(self) -> &'a str {
         std::str::from_utf8(std::slice::from_ref(&self.0))
             .expect("valid alpha numeric should be checked at creation")
     }
 }
 
-impl Display for AlphaNum {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_ref())
+impl<'a> TryFrom<&'a u8> for &'a AlphaNum {
+    type Error = NonAlphaNumError;
+
+    fn try_from(value: &'a u8) -> Result<Self, Self::Error> {
+        AlphaNum::new(*value).and(Ok(AlphaNum::from_u8_ref_unchecked(value)))
     }
 }
 
