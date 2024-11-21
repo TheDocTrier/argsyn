@@ -356,7 +356,7 @@ impl AlphaNum {
     }
 
     #[ref_cast_custom]
-    fn from_u8_ref_unchecked(a: &u8) -> &Self;
+    unsafe fn from_u8_ref_unchecked(a: &u8) -> &Self;
 }
 
 impl Debug for AlphaNum {
@@ -367,14 +367,14 @@ impl Debug for AlphaNum {
 
 impl Display for AlphaNum {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.into())
+        f.write_str(self.as_ref())
     }
 }
 
-impl<'a> Into<&'a str> for &'a AlphaNum {
-    fn into(self) -> &'a str {
-        std::str::from_utf8(std::slice::from_ref(&self.0))
-            .expect("valid alpha numeric should be checked at creation")
+impl AsRef<str> for AlphaNum {
+    fn as_ref(&self) -> &str {
+        // Valid alpha numeric should be checked at creation
+        unsafe { std::str::from_utf8_unchecked(std::slice::from_ref(&self.0)) }
     }
 }
 
@@ -382,7 +382,8 @@ impl<'a> TryFrom<&'a u8> for &'a AlphaNum {
     type Error = NonAlphaNumError;
 
     fn try_from(value: &'a u8) -> Result<Self, Self::Error> {
-        AlphaNum::new(*value).and(Ok(AlphaNum::from_u8_ref_unchecked(value)))
+        // Successful `AlphaNum::new` guarantees correct value
+        AlphaNum::new(*value).and_then(|_| unsafe { Ok(AlphaNum::from_u8_ref_unchecked(value)) })
     }
 }
 
