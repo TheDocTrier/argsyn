@@ -38,6 +38,8 @@
 //! }
 //! ```
 
+use ref_cast::RefCast;
+
 use core::str;
 use std::collections::VecDeque;
 use std::fmt::{Debug, Display};
@@ -340,7 +342,8 @@ fn split_first_alpha_num(s: &str) -> Option<(AlphaNum, &str)> {
 }
 
 /// Store an alpha numeric byte which can be used as a short option
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, RefCast)]
+#[repr(transparent)]
 pub struct AlphaNum(u8);
 
 impl AlphaNum {
