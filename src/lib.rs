@@ -38,7 +38,8 @@
 //! }
 //! ```
 
-use std::collections::{HashSet, VecDeque};
+use core::str;
+use std::collections::VecDeque;
 use std::fmt::Display;
 
 /// Converts [`Iterator`] of [`String`]s into an iterator of [`Opt`]s.
@@ -89,7 +90,7 @@ pub trait ArgsExt: IntoIterator<Item = String> + Sized {
     /// NonOption("--ignore")
     /// ```
     fn opts(self, short_pairs: &str) -> Result<Parser, NonAlphaNumError> {
-        Parser::new(self.into_iter().collect(), short_pairs.chars().collect())
+        Parser::new(self.into_iter().collect(), short_pairs.as_bytes().into())
     }
 }
 
@@ -223,7 +224,7 @@ pub struct Parser {
     pub args: VecDeque<String>,
 
     /// All shorts which will expect a value after them
-    pub short_pairs: HashSet<char>,
+    pub short_pairs: Vec<u8>,
 
     /// True causes all arguments to be parsed as [`NonOption`]
     ///
@@ -239,18 +240,15 @@ impl Parser {
     /// # Examples
     ///
     /// ```
-    /// # let args = vec!["a", "-bc", "val"].into_iter().map(|s| s.to_string());
     /// use argsyn::Parser;
     ///
-    /// let parser = Parser::new(args.collect(), "c".chars().collect());
+    /// let args = vec!["a".into(), "-bc".into(), "val".into()];
+    /// let parser = Parser::new(args.into(), vec![b'c']);
     /// ```
-    pub fn new(
-        args: VecDeque<String>,
-        short_pairs: HashSet<char>,
-    ) -> Result<Self, NonAlphaNumError> {
+    pub fn new(args: VecDeque<String>, short_pairs: Vec<u8>) -> Result<Self, NonAlphaNumError> {
         // Check short_pairs only contains alphanumeric characters
         for &c in short_pairs.iter() {
-            into_alpha_num(c)?;
+            check_alpha_num(c)?;
         }
         Ok(Parser {
             args,
@@ -281,6 +279,11 @@ impl Parser {
         } else if let Some(shorts_str) = next_arg.strip_prefix('-') {
             // -[ashorts]
             if let Some((a, other_str)) = split_first_alpha_num(shorts_str) {
+                // Convert `a` into string representation
+                let s_a = str::from_utf8(&[a])
+                    .expect("alphanumeric already checked")
+                    .to_string();
+
                 // -a[shorts]
                 // Note, `shorts_chars.as_str()` is the leftover shorts
                 if self.short_pairs.contains(&a) {
@@ -289,20 +292,20 @@ impl Parser {
                         // -a [BAR]
                         if let Some(value) = self.args.pop_front() {
                             // -a BAR
-                            ShortPair(a.to_string(), value).into()
+                            ShortPair(s_a, value).into()
                         } else {
                             // -a <EOF>
-                            ShortIncomplete(a.to_string()).into()
+                            ShortIncomplete(s_a).into()
                         }
                     } else {
                         // -aBAR
-                        ShortPair(a.to_string(), other_str.to_owned()).into()
+                        ShortPair(s_a, other_str.to_owned()).into()
                     }
                 } else {
                     // -ashorts
                     // Push the leftover shorts back into the arguments
                     self.args.push_front(format!("-{}", other_str));
-                    Short(a.to_string()).into()
+                    Short(s_a).into()
                 }
             } else {
                 // -
@@ -327,26 +330,62 @@ impl Iterator for Parser {
 
 /// An error returned by [`Parser::new`] when a non-alphanumeric short pair is given.
 #[derive(Debug)]
-pub struct NonAlphaNumError(char);
+pub struct NonAlphaNumError(pub u8);
 
 impl Display for NonAlphaNumError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "character {:?} is not alphanumeric", self.0)
+        write!(f, "character {:x?} is not alphanumeric", self.0)
     }
 }
 
 impl std::error::Error for NonAlphaNumError {}
 
 /// Check that `a` can be used as a short
-pub fn into_alpha_num(a: char) -> Result<char, NonAlphaNumError> {
+pub fn check_alpha_num(a: u8) -> Result<u8, NonAlphaNumError> {
     match a {
-        'a'..='z' | 'A'..='Z' | '0'..='9' => Ok(a),
+        b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' => Ok(a),
         x => Err(NonAlphaNumError(x)),
     }
 }
 
-fn split_first_alpha_num(s: &str) -> Option<(char, &str)> {
-    let mut c = s.chars();
-    let a = into_alpha_num(c.next()?).ok()?;
-    Some((a, c.as_str()))
+fn split_first_alpha_num(s: &str) -> Option<(u8, &str)> {
+    let (a, ss) = s.split_at_checked(1)?;
+    let a = check_alpha_num(a.bytes().next()?).ok()?;
+    Some((a, ss))
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn integrate() {
+        let s = "program arg1 -abcx12 -y 3 --long --key=value - arg2 -- -kh --ignore";
+        let v = s.split(' ').map(|a| a.to_string()).collect::<Vec<_>>();
+
+        let parser = Parser::new(v.into(), "xy".as_bytes().into()).unwrap();
+        let parsed = parser.into_iter().collect::<Vec<_>>();
+        let simple_parsed = parsed.iter().map(|o| o.simplify()).collect::<Vec<_>>();
+
+        use SimpleOpt::*;
+        assert_eq!(
+            simple_parsed,
+            vec![
+                Basic("program"),
+                Basic("arg1"),
+                Flag("a"),
+                Flag("b"),
+                Flag("c"),
+                Pair("x", "12"),
+                Pair("y", "3"),
+                Flag("long"),
+                Pair("key", "value"),
+                Stdin,
+                Basic("arg2"),
+                Done,
+                Basic("-kh"),
+                Basic("--ignore")
+            ]
+        );
+    }
 }
