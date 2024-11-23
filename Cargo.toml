@@ -3,7 +3,7 @@ name = "argsyn"
 license = "GPL-3.0-or-later"
 description = "A complete implementation of GNU-style argument syntax"
 repository = "https://github.com/TheDocTrier/argsyn"
-version = "0.7.0"
+version = "0.7.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

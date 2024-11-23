@@ -296,10 +296,13 @@ impl Parser {
                         // -aBAR
                         ShortPair(s_a, other_str.to_owned()).into()
                     }
-                } else {
+                } else if !other_str.is_empty() {
                     // -ashorts
                     // Push the leftover shorts back into the arguments
                     self.args.push_front(format!("-{}", other_str));
+                    Short(s_a).into()
+                } else {
+                    // -a
                     Short(s_a).into()
                 }
             } else {
