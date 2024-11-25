@@ -133,6 +133,12 @@ pub enum SimpleOpt<'a> {
 
 use SimpleOpt::*;
 
+impl<'a> Display for SimpleOpt<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&Opt::from(*self).to_string())
+    }
+}
+
 /// All possible options/non-options which can be parsed from arguments
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum Opt {
@@ -214,6 +220,46 @@ impl Opt {
             ShortPair(k, v) | LongPair(k, v) => Pair(k, v),
             Terminator => Done,
             _ => Other(self),
+        }
+    }
+}
+
+impl<'a> From<SimpleOpt<'a>> for Opt {
+    fn from(value: SimpleOpt<'a>) -> Self {
+        match value {
+            Basic(s) => NonOption(s.to_string()),
+            Stdin => Dash,
+            Flag(f) => {
+                if f.len() > 1 {
+                    Long(f.to_string())
+                } else {
+                    Short(f.to_string())
+                }
+            }
+            Pair(k, v) => {
+                if k.len() > 1 {
+                    LongPair(k.to_string(), v.to_string())
+                } else {
+                    ShortPair(k.to_string(), v.to_string())
+                }
+            }
+            Done => Terminator,
+            Other(opt) => opt.clone(),
+        }
+    }
+}
+
+impl Display for Opt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NonOption(s) => f.write_str(s),
+            Dash => f.write_str("-"),
+            Short(flag) => write!(f, "-{flag}"),
+            ShortPair(k, v) => write!(f, "-{k} {v}"),
+            ShortIncomplete(k) => write!(f, "-{k} ??"),
+            Long(flag) => write!(f, "--{flag}"),
+            LongPair(k, v) => write!(f, "--{k}={v}"),
+            Terminator => f.write_str("--"),
         }
     }
 }
@@ -327,7 +373,7 @@ impl Iterator for Parser {
 // UTILS
 
 /// An error returned by [`Parser::new`] when a non-alphanumeric short pair is given.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NonAlphaNumError(pub u8);
 
 impl Display for NonAlphaNumError {
