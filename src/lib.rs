@@ -96,7 +96,7 @@ pub trait ArgsExt: IntoIterator<Item = String> + Sized {
     }
 }
 
-impl<T> ArgsExt for T where T: Iterator<Item = String> {}
+impl<T> ArgsExt for T where T: IntoIterator<Item = String> {}
 
 /// Alternative labeling of [`Opt`] which is easier to use in `match` statements.
 ///
